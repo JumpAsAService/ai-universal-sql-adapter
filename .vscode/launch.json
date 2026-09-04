@@ -1,0 +1,46 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "CLI (module)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ai_universal_sql_adapter",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "APP_ENV": "development"
+      },
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "File corrente",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "APP_ENV": "development"
+      },
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "pytest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests", "-vv"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "APP_ENV": "development"
+      }
+    }
+  ]
+}

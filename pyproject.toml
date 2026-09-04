@@ -1,0 +1,47 @@
+[project]
+name = "ai-universal-sql-adapter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "JumpAsAService", email = "trivelli.leonardo@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "ibis-framework[clickhouse]>=12.0.0",
+    "pendulum>=3.2.0",
+    "pydantic-ai>=2.39.0",
+    "pydantic-settings>=2.15.0",
+]
+
+[project.scripts]
+ai-universal-sql-adapter = "ai_universal_sql_adapter.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pylint>=4.0.8",
+    "ruff>=0.16.6",
+]
+
+[tool.pylint.main]
+py-version = "3.11"
+source-roots = ["src"]
+jobs = 0
+ignore-paths = ['^\.venv/.*$']
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.design]
+max-args = 8
