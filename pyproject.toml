@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-ai>=2.40.0",
     "pydantic-ai-slim[duckduckgo]>=2.40.0",
     "pydantic-settings>=2.15.0",
+    "python-telegram-bot>=22.8",
     "redis>=8.1.0",
     "uvicorn>=0.52.4",
 ]

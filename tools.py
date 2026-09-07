@@ -1,13 +1,16 @@
-from pandas.core.ops.docstrings import key
-from ibis.expr.types.numeric import IntegerScalar
 import operator
 from operator import methodcaller
-import ibis
 from typing import Any
+
+import ibis
 import numpy as np
 import pandas as pd
 import pendulum
+from ibis.expr.types.numeric import IntegerScalar
 from pydantic_ai import ModelRetry, RunContext, Tool
+
+import clickhouse_connect.driver.exceptions as ch_exc
+from ibis.common.exceptions import IbisError
 
 import utils
 from deps import Deps
@@ -16,10 +19,11 @@ from schemas import (
     GetKeySchema,
     GetTableSchema,
     GroupBySchema,
+    LimitSchema,
     MeanSchema,
+    QueryOutput,
     SelectSchema,
     SortSchema,
-    LimitSchema
 )
 
 
@@ -84,7 +88,7 @@ class GetTableList(Tool):
         """
         try:
             ls_tables: list[str] = ctx.deps.con.list_tables()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - qualsiasi errore del backend va riportato al modello
             raise ModelRetry(f"Error in loading tables: {e}")
 
         return ls_tables
@@ -217,8 +221,8 @@ class AggregateTable(Tool):
             raise ModelRetry(
                 f"Columns not found: {', '.join(missing)}. Available: {', '.join(expr.columns)}"
             )
-        #clash = [c for c in args.aggregations if c in args.group_by_columns]
-        #if clash:
+        # clash = [c for c in args.aggregations if c in args.group_by_columns]
+        # if clash:
         #    raise ModelRetry(
         #        f"Columns {', '.join(clash)} cannot be both aggregated and grouped by"
         #    )
@@ -245,7 +249,9 @@ class CountRows(Tool):
     def __init__(self):
         super().__init__(self._run, name="count_rows")
 
-    def _run(self, ctx: RunContext[Deps], args: GetKeySchema) -> pd.DataFrame | pd.Series | Any:
+    def _run(
+        self, ctx: RunContext[Deps], args: GetKeySchema
+    ) -> pd.DataFrame | pd.Series | Any:
         expr: IntegerScalar = utils.load_expr(ctx, args.key).count()
         return ctx.deps.con.execute(expr)
 
@@ -256,15 +262,19 @@ class CountUniqueRows(Tool):
     def __init__(self):
         super().__init__(self._run, name="count_unique_rows")
 
-    def _run(self, ctx: RunContext[Deps], args: GetKeySchema) -> pd.DataFrame | pd.Series | Any:
+    def _run(
+        self, ctx: RunContext[Deps], args: GetKeySchema
+    ) -> pd.DataFrame | pd.Series | Any:
         expr: IntegerScalar = utils.load_expr(ctx, args.key).distinct().count()
-        
+
         return ctx.deps.con.execute(expr)
 
+
 class SortTable(Tool):
-    """ Sort a table or a ibis expression by a column ascending or descending """
+    """Sort a table or a ibis expression by a column ascending or descending"""
+
     def __init__(self):
-        super().__init__(self._run, name='sort')
+        super().__init__(self._run, name="sort")
 
     def _run(self, ctx: RunContext[Deps], args: SortSchema) -> str:
         """Sort a stored expression by one column and store the result.
@@ -285,17 +295,34 @@ class SortTable(Tool):
         order = args.column if args.ascending else ibis.desc(args.column)
         return utils.save_expr(ctx, expr.order_by(order))
 
-class LimitTable(Tool):
-    """ Apply a limit of results in a stored expression """
-    def __init__(self):
-        super().__init__(self._run, name='limit')
 
-    def _run(self, ctx: RunContext[Deps], args:LimitSchema)->str:
+class ExpressionToSql(Tool):
+    def __init__(self):
+        super().__init__(self._run, name="expression_to_sql")
+
+    def _run(self, ctx: RunContext[Deps], args: GetKeySchema) -> str:
+        """Show the SQL that a stored expression would run, without executing it.
+        returning the sql expression for analysis and checks
+
+        Args:
+            args: the key of the stored expression
+        """
+        expr = utils.load_expr(ctx, args.key)
+        return ctx.deps.con.compile(expr, pretty=True)
+
+
+class LimitTable(Tool):
+    """Apply a limit of results in a stored expression"""
+
+    def __init__(self):
+        super().__init__(self._run, name="limit")
+
+    def _run(self, ctx: RunContext[Deps], args: LimitSchema) -> str:
         """limit a stored expression by the number of rows.
 
         Args:
             args: the stored expression key, the number of rows to retain
-        
+
         Returns:
             The key of the limited expression. Pass it to the other tools
         """
@@ -304,9 +331,10 @@ class LimitTable(Tool):
 
         return utils.save_expr(ctx, expr)
 
+
 class RunQuery(Tool):
     """Execute a query expression to return data
-    
+
     Args:
         args: the stored expression key
 
@@ -315,20 +343,45 @@ class RunQuery(Tool):
         to avoid wasting of tokens
     """
 
-
-
     def __init__(self):
         super().__init__(self._run, name="run_query")
 
     def _run(self, ctx: RunContext[Deps], args: GetKeySchema) -> list[dict]:
         """..."""
         expr = utils.load_expr(ctx, args.key)
-        
+
         # apply limit if is a table:
         if isinstance(expr, ibis.Expr):
             expr = expr.limit(ctx.deps.expr_limit)
 
         df = ctx.deps.con.to_pandas(expr)
         if not isinstance(df, pd.DataFrame):
-            raise RuntimeError(f"Expected a DataFrame, got {type(df).__name__}")
+            raise TypeError(f"Expected a DataFrame, got {type(df).__name__}")
         return df.to_dict("records")
+
+def dry_run(ctx: RunContext[Deps], key: str) -> str:
+    """Compila ed esegue EXPLAIN sulla query. Ritorna l'SQL, alza ModelRetry se non valida."""
+    expr = utils.load_expr(ctx, key)
+    sql = ""
+    try:
+        sql = ctx.deps.con.compile(expr, pretty=True)
+        ctx.deps.con.raw_sql(f"EXPLAIN {sql}")  # ty: ignore[unresolved-attribute]
+    except (ch_exc.DatabaseError, IbisError) as e:
+        raise ModelRetry(
+            f"La query non è valida, correggila e ricostruiscila.\nSQL:\n{sql}\nErrore: {e}"
+        ) from e
+    return sql
+
+
+class DryRunValidator:
+    """Output validator per il query agent: esegue il dry run della query
+    prima di restituire la chiave. Si registra con
+    ``agent.output_validator(DryRunValidator())``.
+
+    Se il dry run fallisce, ``dry_run`` alza ModelRetry e il modello
+    ricostruisce la query.
+    """
+
+    def __call__(self, ctx: RunContext[Deps], output: QueryOutput) -> QueryOutput:
+        dry_run(ctx, output.key)
+        return output

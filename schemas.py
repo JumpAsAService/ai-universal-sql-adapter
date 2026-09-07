@@ -1,15 +1,11 @@
-from pydantic_ai import RunContext
-from anthropic.types.beta.agent_create_params import Tool
+from datetime import date, datetime
 from typing import Literal
-import utils
-from deps import Deps
 
 from pydantic import BaseModel, Field, model_validator
-from datetime import datetime, date
-
 
 FilterType = Literal["eq", "ne", "lt", "le", "gt", "ge", "in"]
 Scalar = int | float | str | datetime | date
+
 
 class MeanSchema(BaseModel):
     """Base model schema to calculate the mean of a list of numbers"""
@@ -57,54 +53,90 @@ class FilterSchema(BaseModel):
 
 
 class GroupBySchema(BaseModel):
-    """ Group By SQL equivalent using an already stored key. """
+    """Group By SQL equivalent using an already stored key."""
 
     key: str = Field(
-        ..., description="Key of the stored expression, returned by get_table or filter_table"
+        ...,
+        description="Key of the stored expression, returned by get_table or filter_table",
     )
     group_by_columns: list[str] = Field(
         ..., min_length=1, description="The columns to group by"
     )
-    aggregations: dict[str, Literal['count', 'sum', 'mean', 'unique', 'max', 'min']] = Field(
-        ..., description="key value dictionary, the key is the column name, while the value is the aggregation operation to perform"
+    aggregations: dict[str, Literal["count", "sum", "mean", "unique", "max", "min"]] = (
+        Field(
+            ...,
+            description="key value dictionary, the key is the column name, while the value is the aggregation operation to perform",
+        )
     )
+
 
 class SelectSchema(BaseModel):
     """Select a group of columns from a stored ibis expression."""
 
     key: str = Field(
-        ..., description="Key of the stored expression, returned by get_table or filter_table"
+        ...,
+        description="Key of the stored expression, returned by get_table or filter_table",
     )
-    columns: list[str] = Field(
-        ..., min_length=1, description="The columns to keep"
-    )
+    columns: list[str] = Field(..., min_length=1, description="The columns to keep")
+
 
 class GetKeySchema(BaseModel):
-    """ Schema to get a query as a key in the store """
+    """Schema to get a query as a key in the store"""
 
     key: str = Field(
         ..., description="Key of the stored expression, returned by previous operations"
     )
 
+
 class SortSchema(BaseModel):
-    """ Order by a single column"""
+    """Order by a single column"""
 
     key: str = Field(
-        ..., description="Key of the stored expression, returned by previous evaluations"
+        ...,
+        description="Key of the stored expression, returned by previous evaluations",
     )
-    column: str = Field(
-        ..., min_length=1, description="The field values to sort"
-    )
-    ascending: bool = Field(
-        True, description="if the sort must be ascending"
-    )
+    column: str = Field(..., min_length=1, description="The field values to sort")
+    ascending: bool = Field(True, description="if the sort must be ascending")
+
 
 class LimitSchema(BaseModel):
-    """ Order by a single column"""
+    """Order by a single column"""
 
     key: str = Field(
-        ..., description="Key of the stored expression, returned by previous evaluations"
+        ...,
+        description="Key of the stored expression, returned by previous evaluations",
     )
-    limit: int = Field(
-        ..., ge=1, description="The number of rows to return"
+    limit: int = Field(..., ge=1, description="The number of rows to return")
+
+
+class QueryOutput(BaseModel):
+    """Key of in the Valkey store"""
+
+    key: str = Field(
+        ...,
+        description="Key of the final stored expression, as returned by the last tool call",
     )
+
+    summary: str = Field(
+        ...,
+        description="one sentence describing what the final expression computes: table, filters, grouping, sorting",
+    )
+
+class ValidationOutput(BaseModel):
+    """Key of in the Valkey store"""
+
+    key: str = Field(
+        ...,
+        description="Key of the final stored expression, as returned by the last tool call",
+    )
+
+    is_valid: bool = Field(
+        ...,
+        description="if the sql query is valid or not"
+    )
+
+    summary: str = Field(
+        ...,
+        description="one sentence describing what the final expression computes: table, filters, grouping, sorting",
+    )
+

@@ -11,3 +11,6 @@ wheels/
 
 # development secrets
 config.toml
+.env
+.ruff_cache
+test.py

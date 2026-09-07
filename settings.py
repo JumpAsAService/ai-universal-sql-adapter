@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, Json, SecretStr, computed_field
 from pydantic_settings import (
@@ -17,6 +17,14 @@ class OpenaiSettings(BaseModel):
 
     base_url: str = Field(..., description="base url for openai")
     secret_key: SecretStr = Field(..., description="secret key for openai")
+
+    def __str__(self) -> str:
+        return super().__str__()
+
+class TelegramSettings(BaseModel):
+    """Base model for telegram bots"""
+
+    token: SecretStr = Field(..., description="Telegram bot token")
 
     def __str__(self) -> str:
         return super().__str__()
@@ -71,6 +79,7 @@ class Settings(BaseSettings):
     database: dict[str, DatabaseSettings] = Field(default_factory=dict)
     allowance: AllowanceSettings
     redis: RedisSettings
+    telegram: TelegramSettings | None = None
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",

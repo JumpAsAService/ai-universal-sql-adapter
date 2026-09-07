@@ -1,0 +1,32 @@
+[openai.scaleway]
+base_url="https://api.scaleway.ai/v1"
+secret_key="<my-scaleway-api-key>"
+
+[database.example]
+host="play.clickhouse.com"
+username="play"
+password="clickhouse"
+port=443
+secure=true
+dialect="clickhouse"
+
+[telegram]
+token="<my optional telegram token>"
+
+[allowance]
+mapping = '''
+{
+  "user": {
+    "id": 1,
+    "username": "Leonardo",
+    "password": "mypassword",
+    "tables": ["actors"]
+  }
+}
+'''
+
+[redis]
+host = "localhost"
+password = "mypassowrd"
+port = 6379
+db = 0
